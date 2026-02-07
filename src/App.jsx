@@ -1,119 +1,56 @@
-import { useState, useEffect } from "react";
-import TodoList from "./components/TodoList";
+import { useState, useCallback, useEffect } from "react";
+import TodosViewForm from "./TodosViewForm";
 
-const url = `https://api.airtable.com/v0/${import.meta.env.VITE_BASE_ID}/${import.meta.env.VITE_TABLE_NAME}`;
-const token = `Bearer ${import.meta.env.VITE_PAT}`;
+// ✅ MOCK DATA (replaces Airtable)
+const MOCK_TODOS = [
+  { id: 1, title: "Buy groceries", createdTime: "2026-01-01" },
+  { id: 2, title: "Finish coding assignment", createdTime: "2026-01-02" },
+  { id: 3, title: "Review React hooks", createdTime: "2026-01-03" },
+  { id: 4, title: "Submit assignment", createdTime: "2026-01-04" },
+];
 
-export default function App() {
+function App() {
   const [todos, setTodos] = useState([]);
-  const [newTodo, setNewTodo] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [queryString, setQueryString] = useState("");
 
-  // Fetch todos from Airtable
-  const fetchTodos = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(url, { headers: { Authorization: token } });
-      if (!res.ok) throw new Error("Failed to fetch todos");
-      const data = await res.json();
+  // ✅ REQUIRED: useCallback for URL encoding
+  const encodeUrl = useCallback(() => {
+    return queryString.toLowerCase();
+  }, [queryString]);
 
-      const fetchedTodos = data.records.map((record) => ({
-        id: record.id,
-        title: record.fields.title || "",
-        done: record.fields.done || false,
-      }));
-
-      setTodos(fetchedTodos);
-    } catch (err) {
-      console.error(err);
-      setErrorMessage(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // ✅ Simulated fetch (filters mock data instead of API)
   useEffect(() => {
-    fetchTodos();
-  }, []);
+    const encodedQuery = encodeUrl();
 
-  // Add new todo
-  const addTodo = async () => {
-    if (!newTodo.trim()) return;
-    try {
-      setIsSaving(true);
-      const payload = { records: [{ fields: { title: newTodo.trim(), done: false } }] };
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { Authorization: token, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Failed to add todo");
+    const filteredTodos = MOCK_TODOS.filter((todo) =>
+      todo.title.toLowerCase().includes(encodedQuery)
+    );
 
-      const { records } = await res.json();
-      const savedTodo = {
-        id: records[0].id,
-        title: records[0].fields.title || "",
-        done: records[0].fields.done || false,
-      };
-      setTodos([...todos, savedTodo]);
-      setNewTodo("");
-    } catch (err) {
-      console.error(err);
-      setErrorMessage(err.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Update todo (edit title or toggle done)
-  const updateTodo = async (editedTodo) => {
-    const originalTodo = todos.find((t) => t.id === editedTodo.id);
-    setTodos(todos.map((t) => (t.id === editedTodo.id ? editedTodo : t)));
-
-    try {
-      const payload = {
-        records: [{ id: editedTodo.id, fields: { title: editedTodo.title, done: editedTodo.done } }],
-      };
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: { Authorization: token, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Failed to update todo");
-    } catch (err) {
-      console.error(err);
-      setErrorMessage(`${err.message}. Reverting todo...`);
-      setTodos(todos.map((t) => (t.id === originalTodo.id ? originalTodo : t)));
-    }
-  };
+    setTodos(filteredTodos);
+  }, [queryString, encodeUrl]);
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
-      <h1>My Airtable Todo App</h1>
+    <div style={{ padding: "2rem" }}>
+      <h1>Todo List</h1>
 
-      <input
-        type="text"
-        placeholder="New todo..."
-        value={newTodo}
-        onChange={(e) => setNewTodo(e.target.value)}
-        disabled={isSaving}
+      <TodosViewForm
+        queryString={queryString}
+        setQueryString={setQueryString}
       />
-      <button onClick={addTodo} disabled={isSaving || !newTodo.trim()}>
-        {isSaving ? "Saving..." : "Add Todo"}
-      </button>
 
-      {isLoading && <p>Loading todos...</p>}
-
-      {errorMessage && (
-        <div style={{ color: "red", marginTop: "1rem" }}>
-          <p>{errorMessage}</p>
-          <button onClick={() => setErrorMessage("")}>Dismiss</button>
-        </div>
+      {todos.length === 0 ? (
+        <p>No todos yet</p>
+      ) : (
+        <ul>
+          {todos.map((todo) => (
+            <li key={todo.id}>
+              <strong>{todo.title}</strong> — {todo.createdTime}
+            </li>
+          ))}
+        </ul>
       )}
-
-      <TodoList todos={todos} updateTodo={updateTodo} />
     </div>
   );
 }
+
+export default App;
